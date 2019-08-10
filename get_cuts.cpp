@@ -16,6 +16,7 @@
 #include <cmath>
 #include <chrono>
 #include <cstdio>
+#include <iomanip>
 // #include <charconv>
 #include <sstream>
 
@@ -58,6 +59,61 @@ struct StrStreambuf : public std::streambuf {
     }
 };
 
+template<typename T>
+std::istream& ignore(std::istream& is) {
+    T t;
+    return is >> t;
+}
+
+template<size_t N, typename T>
+std::istream& ignore(std::istream& is) {
+    if constexpr (N == 0) {
+        return is;
+    } else {
+        return is >> ignore<T> >> ignore<N-1, T>;
+    }
+}
+
+class LineReader {
+    char* _p;
+    char* _end;
+public:
+    void reset(std::string& str) {
+        _p = str.data();
+        _end = _p + str.length();
+    }
+    void skip(char c) {
+        if (_p == _end || *_p != c) {
+            throw std::invalid_argument(std::string("Unable to read ") + c);
+        }
+        ++_p;
+    }
+    double readDouble() {
+        char* end = _end;
+        double val = std::strtod(_p, &end);
+        if (end == _p) {
+            throw std::invalid_argument("Unable to read double");
+        }
+        _p = end;
+        return val;
+    }
+    bool atEnd() const {
+        return _p == _end;
+    }
+};
+
+// In order from slowest to fastest:
+// istream >> val;
+// sscanf();
+// val = strtod(...);
+
+
+// getline(file, std::string& line);
+// file.getline(char* line, 1024);
+
+static size_t MAX_LINE_LENGTH = 1024;
+static int PROGRESS_WIDTH = 60;
+
 double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
     std::ifstream file{filename};
 
@@ -74,10 +130,56 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
     std::string line;
 
     StrStreambuf lineStreambuf;
+    std::istream lineStream{&lineStreambuf};
+
+    LineReader lineReader;
     
+    size_t bytesReadAtLastReport = 0;
+    auto timeAtLastReport = startTime;
     auto readNextLine = [&] {
         lineNum++;
-        return !!std::getline(file, line);
+
+        // std::getline(file, line);
+        line.resize(MAX_LINE_LENGTH);
+        file.getline(line.data(), line.size() - 1);
+        line.resize(std::strlen(line.data()));
+        // line.clear();
+        // while (true) {
+        //     char c = file.rdbuf()->sbumpc();
+        //     if (c == '\n') {
+        //         break;
+        //     }
+        //     line.push_back(c);
+        // }
+        lineReader.reset(line);
+        // lineStreambuf.reset(line);
+        // lineStream.sync();
+        // lineStream.clear();
+
+        if (lineNum % 200000 == 0) {
+            auto bytesRead = file.tellg();
+            double percentRead = bytesRead / double(fileSize);
+            // double percentRead = std::round(bytesRead / double(fileSize) * 100'00) / 100;
+            auto now = std::chrono::steady_clock::now();
+            std::chrono::duration<double> elapsed = now - timeAtLastReport;
+            double rate = double(size_t(bytesRead) - bytesReadAtLastReport) / 1024 / 1024 / elapsed.count();
+            // std::printf("Read %zu lines (%.1f%%) in %.1fs (%.1fs MB/s)\n", lineNum, percentRead, totalElapsed.count(), );
+
+            int filledWidth = percentRead * PROGRESS_WIDTH;
+            // "\r" returns to beginning of line, "ESC [ K" clears the line
+            std::printf("\r\x1b[K%s [%-*s] %2.1lf%% (%2.1lf MB/s)",
+                filename, PROGRESS_WIDTH, std::string(filledWidth, '=').c_str(), percentRead * 100, rate);
+            std::fflush(stdout);
+
+            bytesReadAtLastReport = bytesRead;
+            timeAtLastReport = now;
+        } else if (!file) {
+            double totalElapsed = std::chrono::duration<double>(std::chrono::steady_clock::now() - startTime).count();
+            std::printf("\r\x1b[K%s [%s] Done in %2.1lfs (%2.1lf MB/s avg)\n",
+                filename, std::string(PROGRESS_WIDTH, '=').c_str(), totalElapsed, double(fileSize) / 1024 / 1024 / totalElapsed);
+        }
+
+        return bool(file);
     };
 
     std::vector<std::vector<Jet>> jetsList(cuts.size());
@@ -85,21 +187,11 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
     readNextLine(); // skip header line
 
     readNextLine();
-    size_t bytesReadAtLastReport = 0;
     while (true) {
-        if (lineNum % 100000 == 0) {
-            auto bytesRead = file.tellg();
-            double percentRead = std::round(bytesRead / double(fileSize) * 100'00) / 100;
-            std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - startTime;
-            std::printf("Read %zu lines (%.1f%%) in %.1fs (%.1fs MB/s)\n", lineNum, percentRead, elapsed.count(), double(size_t(bytesRead) - bytesReadAtLastReport) / 1024 / 1024 / elapsed.count());
-            bytesReadAtLastReport = bytesRead;
-        }
-
         assert(line == "New Event");
         readNextLine();
 
         // lineStreambuf.reset(line);
-        // std::istream lineStream{&lineStreambuf};
         // lineStream >> weight;
 
         // char* p = line.begin();
@@ -109,7 +201,17 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
 
         double weight;
         double crossSection;
-        assert(std::sscanf(line.data(), "%lf, %lf%n", &weight, &crossSection, &readChars) == 2 && readChars == line.size());
+        // assert(std::sscanf(line.data(), "%lf, %lf%n", &weight, &crossSection, &readChars) == 2 && readChars == line.size());
+        weight = lineReader.readDouble();
+        lineReader.skip(',');
+        crossSection = lineReader.readDouble();
+
+        // lineStream >> weight;
+        // assert(lineStream.peek() == ',');
+        // lineStream.get();
+        // lineStream >> crossSection;
+        // assert(lineStream.eof());
+
         if (!readNextLine()) {
             std::cout<<"Done, "<<jetsList[0].size()<<std::endl;
             return crossSection / totalWeight;
@@ -120,7 +222,21 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
         int isGluon1 = 2;
         int isGluon2 = 2;
         if (line[0] == 'H') {
-            assert(std::sscanf(line.data(), "H %*d %*d %*d %*d %*d %*d %d %d", &isGluon1, &isGluon2) == 2);
+            // assert(std::sscanf(line.data(), "H %*d %*d %*d %*d %*d %*d %d %d", &isGluon1, &isGluon2) == 2);
+            lineReader.skip('H');
+            lineReader.readDouble();
+            lineReader.readDouble();
+            lineReader.readDouble();
+            lineReader.readDouble();
+            lineReader.readDouble();
+            lineReader.readDouble();
+            isGluon1 = lineReader.readDouble();
+            isGluon2 = lineReader.readDouble();
+            // lineStream.get();
+            // lineStream >> ignore<6, int> >> isGluon1 >> isGluon2;
+            // std::cout<<"read gluons " << isGluon1 << ' ' << isGluon2 << std::endl;
+            // assert(lineStream.eof());
+        
             assert(isGluon1 == 0 || isGluon1 == 1 || isGluon1 == 2 /* ??? */);
             assert(isGluon2 == 0 || isGluon2 == 1 || isGluon2 == 2 /* ??? */);
             if (!readNextLine()) throw std::runtime_error("Ended after H");
@@ -140,9 +256,19 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
         if (line[0] == 'M') {
             double muData1[4];
             double muData2[4];
-            assert(std::sscanf(line.data(), "M %lf %lf %lf %lf %*d%n", &muData1[0], &muData1[1], &muData1[2], &muData1[3], &readChars) == 4 && readChars == line.size());
+            // assert(std::sscanf(line.data(), "M %lf %lf %lf %lf %*d%n", &muData1[0], &muData1[1], &muData1[2], &muData1[3], &readChars) == 4 && readChars == line.size());
+            lineReader.skip('M');
+            muData1[0] = lineReader.readDouble();
+            muData1[1] = lineReader.readDouble();
+            muData1[2] = lineReader.readDouble();
+            muData1[3] = lineReader.readDouble();
             if (!readNextLine()) throw std::runtime_error("Ended after M1");
-            assert(std::sscanf(line.data(), "M %lf %lf %lf %lf %*d%n", &muData2[0], &muData2[1], &muData2[2], &muData2[3], &readChars) == 4 && readChars == line.size());
+            // assert(std::sscanf(line.data(), "M %lf %lf %lf %lf %*d%n", &muData2[0], &muData2[1], &muData2[2], &muData2[3], &readChars) == 4 && readChars == line.size());
+            lineReader.skip('M');
+            muData2[0] = lineReader.readDouble();
+            muData2[1] = lineReader.readDouble();
+            muData2[2] = lineReader.readDouble();
+            muData2[3] = lineReader.readDouble();
             if (!readNextLine()) throw std::runtime_error("Ended after M2");
 
             std::transform(std::begin(muData1), std::end(muData1), std::begin(muData2), std::begin(zData), std::plus{});
@@ -177,14 +303,22 @@ double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& 
             char* ptr = line.data();
             double val;
             // std::cout<<"trying "<<line<<std::endl;
-            while (std::sscanf(ptr, " %lf%n", &val, &readChars) == 1) {
-                // std::cout<<"read "<<readChars<<" chars " << val<<std::endl;
-                ptr += readChars;
-                if (ptr != line.data() + line.size()) {
-                    ptr += 1; // skip comma
+            while (true) {
+                jet.push_back(lineReader.readDouble());
+                if (lineReader.atEnd()) {
+                    break;
+                } else {
+                    lineReader.skip(',');
                 }
-                jet.push_back(val);
             }
+            // while (std::sscanf(ptr, " %lf%n", &val, &readChars) == 1) {
+            //     // std::cout<<"read "<<readChars<<" chars " << val<<std::endl;
+            //     ptr += readChars;
+            //     if (ptr != line.data() + line.size()) {
+            //         ptr += 1; // skip comma
+            //     }
+            //     jet.push_back(val);
+            // }
             // std::cout<<"got jet "<<jet.size()<< "   " << line<<std::endl;
             assert(jet.size() == size_t(Var::NUM_VARS) - 8);
 
