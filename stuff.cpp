@@ -1,5 +1,5 @@
 // compile:
-//   clang++ -stdlib=libc++ -std=c++17 -O3 get_cuts.cpp -o get_cuts
+//   clang++ -std=c++17 -O3 get_cuts.cpp -o get_cuts
 
 // run:
 //   ./get_cuts newerHIJ.txt
