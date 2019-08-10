@@ -1,3 +1,9 @@
+// compile:
+//   clang++ -stdlib=libc++ -std=c++17 -O3 get_cuts.cpp -o get_cuts
+
+// run:
+//   ./get_cuts newerHIJ.txt
+
 #if !defined(__cplusplus) || __cplusplus < 201703L
 #error "This file requires C++17"
 #endif
