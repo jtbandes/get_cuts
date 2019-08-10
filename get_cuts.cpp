@@ -21,7 +21,7 @@
 
 enum class Var : size_t {
     VAR_NUM, VAR_WEIGHT, VAR_PT, VAR_PSEUDORAP, VAR_PHI, VAR_M, VAR_CONST, VAR_RAP, Z_PX, Z_PY, Z_PZ, Z_E, Z_RAP, GLUON_FLAG_1, GLUON_FLAG_2, VAR_N_SD,
-// VAR_NUM, VAR_WEIGHT, VAR_PT, VAR_PSEUDORAP, VAR_PHI, VAR_M, VAR_CONST, VAR_RAP, Z_PX, Z_PY, Z_PZ, Z_E, Z_RAP, GLUON_FLAG_1, GLUON_FLAG_2, VAR_C11, VAR_C10, VAR_ANG1, VAR_ANG05, VAR_N_SD, VAR_C11_SD, VAR_C10_SD, VAR_ANG1_SD
+// VAR_NUM, VAR_WEIGHT, VAR_PT, VAR_PSEUDORAP, VAR_PHI, VAR_M, VAR_CONST, VAR_RAP, Z_PX, Z_PY, Z_PZ, Z_E, Z_RAP, GLUON_FLAG_1, GLUON_FLAG_2, VAR_C11, VAR_C10, VAR_ANG1, VAR_ANG05, VAR_N_SD, VAR_C11_SD, VAR_C10_SD, VAR_ANG1_SD,
     NUM_VARS
 };
 
@@ -30,13 +30,16 @@ const size_t Z_INSERT_POINT = 8;
 const size_t FLAG_INSERT_POINT = 13;
 
 
+
+using Jet = std::vector<double>;
+
 struct CutClause {
     Var var;
     double min;
     double max;
 
-    bool matches(const std::vector<double>& vals) const {
-        return min <= vals[size_t(var)] && vals[size_t(var)] <= max;
+    bool matches(const Jet& jet) const {
+        return min <= jet[size_t(var)] && jet[size_t(var)] <= max;
     }
 };
 using Cut = std::vector<CutClause>;
@@ -55,7 +58,7 @@ struct StrStreambuf : public std::streambuf {
     }
 };
 
-void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
+double getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
     std::ifstream file{filename};
 
     // Get total file size
@@ -77,18 +80,19 @@ void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cu
         return !!std::getline(file, line);
     };
 
-    using Jet = std::vector<double>;
-
-    std::vector<std::vector<Jet>> jetsTaken{cuts.size()};
+    std::vector<std::vector<Jet>> jetsList(cuts.size());
 
     readNextLine(); // skip header line
 
     readNextLine();
+    size_t bytesReadAtLastReport = 0;
     while (true) {
         if (lineNum % 100000 == 0) {
-            double amountRead = std::round(file.tellg() / double(fileSize) * 100'00) / 100;
+            auto bytesRead = file.tellg();
+            double percentRead = std::round(bytesRead / double(fileSize) * 100'00) / 100;
             std::chrono::duration<double> elapsed = std::chrono::steady_clock::now() - startTime;
-            std::printf("Read %zu lines (%.1f%%) in %.1fs\n", lineNum, amountRead, elapsed.count());
+            std::printf("Read %zu lines (%.1f%%) in %.1fs (%.1fs MB/s)\n", lineNum, percentRead, elapsed.count(), double(size_t(bytesRead) - bytesReadAtLastReport) / 1024 / 1024 / elapsed.count());
+            bytesReadAtLastReport = bytesRead;
         }
 
         assert(line == "New Event");
@@ -106,7 +110,10 @@ void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cu
         double weight;
         double crossSection;
         assert(std::sscanf(line.data(), "%lf, %lf%n", &weight, &crossSection, &readChars) == 2 && readChars == line.size());
-        if (!readNextLine()) throw std::runtime_error("Ended after header");
+        if (!readNextLine()) {
+            std::cout<<"Done, "<<jetsList[0].size()<<std::endl;
+            return crossSection / totalWeight;
+        }
 
         totalWeight += weight;
 
@@ -145,11 +152,28 @@ void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cu
         if (line == "New Event") {
             continue;
         }
-        while (readNextLine()) {
+
+        size_t jetsSeen = 0;
+        std::vector<size_t> jetsTaken(cuts.size(), 0);
+        do {
             if (line == "New Event") {
                 break;
             }
+            jetsSeen++;
+            if (jetsSeen <= skipNum) {
+                continue;
+            }
+            if (std::all_of(jetsTaken.begin(), jetsTaken.end(), [&](auto taken) { return taken >= takeNum; })) {
+                // std::cout<<"skip (already taken) "<<jetsTaken[0]<<std::endl;
+                continue;
+            }
+            if (strict && jetsSeen > skipNum + takeNum) {
+                // std::cout<<"skip (already seen all)"<<std::endl;
+                continue;
+            }
+
             Jet jet;
+            jet.reserve(size_t(Var::NUM_VARS));
             char* ptr = line.data();
             double val;
             // std::cout<<"trying "<<line<<std::endl;
@@ -170,9 +194,13 @@ void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cu
             jet.insert(jet.begin() + FLAG_INSERT_POINT+1, isGluon2);
 
             assert(jet.size() == size_t(Var::NUM_VARS));
+            // for (auto f : jet) {
+            //     std::cout << f << ", ";
+            // }
+            // std::cout << std::endl;
 
             for (size_t i = 0; i < cuts.size(); i++) {
-                if (jetsTaken[i].size() >= takeNum) {
+                if (jetsTaken[i] >= takeNum) {
                     continue;
                 }
 
@@ -180,15 +208,26 @@ void getCutJets(const char* filename, size_t takeNum, const std::vector<Cut>& cu
                     return clause.matches(jet);
                 });
                 if (matches) {
-                    jetsTaken[i].push_back(std::move(jet));
+                    jetsTaken[i]++;
+                    jetsList[i].push_back(std::move(jet));
+                    // std::cout<<"TOOK"<<std::endl;
                 }
             }
+        } while (readNextLine());
+        if (jetsSeen>3) {
+            // std::cout<<"REad event "<<jetsTaken[0]<<std::endl;
+            // throw std::runtime_error("done");
+        }
+        if (file.eof()) {
+            std::cout<<"Done, "<<jetsList[0].size()<<std::endl;
+            return crossSection / totalWeight;
         }
     }
+    return -1;
 }
 
 int main(int argc, char** argv) {
-    getCutJets(argv[1], 2, {
+    double csOnW = getCutJets(argv[1], 2, {
         Cut{
             {Var::VAR_PT, 150, 175},
             {Var::VAR_RAP, -2, 2},
@@ -196,5 +235,6 @@ int main(int argc, char** argv) {
             {Var::VAR_M, 0, 60},
         },
     }, 0, true);
+    std::cout<<"csOnW " <<csOnW<<std::endl;
     return 0;
 }
