@@ -2,11 +2,22 @@
 #error "This file requires C++17"
 #endif
 
-#include <fstream>
-#include <iostream>
+#include <cstdio>
+#include <memory>
+#include <system_error>
 #include <vector>
 
 #include "Progress.h"
+
+size_t getFileSize(std::FILE* file) {
+    if (file) {
+        if (std::fseek(file, 0, SEEK_END) != 0) {
+            throw std::system_error(errno, std::system_category(), "Error seeking to end");
+        }
+        return std::ftell(file);
+    }
+    return 0;
+}
 
 // Helper class to read a file line by line, and parse values out of the most recently read line.
 class LineReader {
@@ -16,7 +27,7 @@ class LineReader {
     char* _end = nullptr;  // end of line
 
     char _buf[MAX_LINE_LENGTH];
-    std::ifstream _file;
+    std::unique_ptr<std::FILE, decltype(&std::fclose)> _file;
     Progress _progress; // must be after _file since we use _file during initialization
 
     void checkEnd() {
@@ -27,35 +38,45 @@ class LineReader {
 
 public:
     LineReader(const char* filename)
-        : _file(filename, std::ios::in | std::ios::ate /* open at end to get file size */)
-        , _progress(filename, _file.tellg())
+        : _file(std::fopen(filename, "r"), std::fclose)
+        , _progress(filename, getFileSize(_file.get()))
     {
-        _file.seekg(0);
         if (!_file) {
             throw std::system_error(errno, std::system_category(), std::string("Error opening ") + filename);
         }
+        std::rewind(_file.get());
     }
 
     // Load a new line from the file. Returns true if the operation succeeded, false if the end of the file was reached.
     bool nextLine() {
-        _file.getline(_buf, MAX_LINE_LENGTH);
-        if (_file.eof()) {
-            _progress.finish();
+        if (!std::fgets(_buf, MAX_LINE_LENGTH, _file.get())) {
+            if (atEOF()) {
+                _progress.finish();
+                _p = nullptr;
+                _end = nullptr;
+                return false;
+            }
+            throw std::system_error(errno, std::system_category(), "Error reading line from file");
+        }
+
+        size_t len = std::strlen(_buf);
+        _progress.addBytesRead(len);
+
+        if (len == 0) {
             _p = nullptr;
             _end = nullptr;
             return false;
         }
-        else if (_file.fail()) {
+        if (_buf[len - 1] == '\n') {
+            _buf[len - 1] = 0;  // allows for later use of strcmp()
+            --len;
+        } else if (!atEOF()) {
             throw std::length_error("Max line length exceeded");
         }
-        size_t len = std::strlen(_buf);
-
-        // Update progress with strlen instead of _file.tellg() which is slow because it actually seeks the file :(
-        _progress.addBytesRead(len + 1);
 
         _p = _buf;
         _end = _p + len;
-        return bool(_file);
+        return true;
     }
 
     // True if all characters on the current line have been consumed
@@ -65,7 +86,7 @@ public:
 
     // True if the last call to `nextLine()` reached the end of the input file
     bool atEOF() const {
-        return _file.eof();
+        return std::feof(_file.get());
     }
 
     // Validate that `str` appears next in the line, and consume it
