@@ -41,6 +41,9 @@ struct CutClause {
     double max;
 
     bool matches(const Jet& jet) const {
+        if (size_t(var) >= jet.size()) {
+            throw std::out_of_range("Variable " + std::to_string(size_t(var)) + " out of range");
+        }
         return min <= jet[size_t(var)] && jet[size_t(var)] <= max;
     }
 };
@@ -162,7 +165,7 @@ CutJetsResult getCutJets(const char* filename, size_t takeNum, const std::vector
                 });
                 if (matches) {
                     jetsTaken[i]++;
-                    result.jetsList[i].push_back(std::move(jet));
+                    result.jetsList[i].push_back(jet);
                 }
             }
         } while (reader.nextLine());
@@ -178,14 +181,25 @@ int main(int argc, char** argv) {
         return 1;
     }
 
-    CutJetsResult result = getCutJets<NewFormat>(argv[1], 2, {
-        Cut<NewFormat>{
-            {NewFormat::Vars::VAR_PT, 150, 175},
+
+    std::vector<Cut<NewFormat>> cuts;
+    for (size_t minPT = 75; minPT <= 250; minPT += 5) {
+        cuts.push_back({
+            {NewFormat::Vars::VAR_PT, double(minPT), double(minPT + 5)},
             {NewFormat::Vars::VAR_RAP, -2, 2},
             {NewFormat::Vars::VAR_CONST, 1, 100},
             {NewFormat::Vars::VAR_M, 0, 60},
-        },
-    }, 0, true);
+            {NewFormat::Vars::VAR_C11, 0, 1},
+            {NewFormat::Vars::VAR_C10, 0, 1},
+            {NewFormat::Vars::VAR_ANG1, 0, 1},
+            {NewFormat::Vars::VAR_ANG05, 0, 1},
+            {NewFormat::Vars::VAR_N_SD, 1, 100},
+            {NewFormat::Vars::VAR_C11_SD, 0, 1},
+            {NewFormat::Vars::VAR_C10_SD, 0, 1},
+            {NewFormat::Vars::VAR_ANG1_SD, 0, 1},
+        });
+    }
+    CutJetsResult result = getCutJets(argv[1], 2, cuts, 0, true);
     
     // Naive output as CSV
     std::printf("# crossSection / totalWeight = %lf\n", result.csOnW);
