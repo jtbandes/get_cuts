@@ -11,53 +11,66 @@
 
 #include "LineReader.h"
 
-struct NewerFormat {
-    enum class Vars : size_t {
-        VAR_NUM, VAR_WEIGHT, VAR_PT, VAR_PSEUDORAP, VAR_PHI, VAR_M, VAR_CONST, VAR_RAP, Z_PX, Z_PY, Z_PZ, Z_E, Z_RAP, GLUON_FLAG_1, GLUON_FLAG_2, VAR_N_SD,
-        NUM_VARS
-    };
+size_t indexOf(const std::vector<std::string>& v, const std::string& x) {
+    if (auto found = std::find(v.begin(), v.end(), x); found != v.end()) {
+        return found - v.begin();
+    }
+    throw std::runtime_error(x + " not found");
+}
 
-    static const size_t WEIGHT_INSERT_POINT = 1;
-    static const size_t Z_INSERT_POINT = 8;
-    static const size_t FLAG_INSERT_POINT = 13;
+struct Format {
+    const std::vector<std::string> vars;
+    const size_t weightInsertPoint;
+    const size_t zInsertPoint;
+    const size_t flagInsertPoint;
+
+    Format(const std::vector<std::string>& vars)
+        : vars(vars)
+        , weightInsertPoint(indexOf(vars, "VAR_WEIGHT"))
+        , zInsertPoint(indexOf(vars, "Z_PX"))
+        , flagInsertPoint(indexOf(vars, "GLUON_FLAG_1"))
+    {}
+
+    size_t numVars() const {
+        return vars.size();
+    }
+
+    size_t var(const std::string& name) const {
+        return indexOf(vars, name);
+    }
 };
 
-struct NewFormat {
-    enum class Vars : size_t {
-        VAR_NUM, VAR_WEIGHT, VAR_PT, VAR_PSEUDORAP, VAR_PHI, VAR_M, VAR_CONST, VAR_RAP, Z_PX, Z_PY, Z_PZ, Z_E, Z_RAP, GLUON_FLAG_1, GLUON_FLAG_2, VAR_C11, VAR_C10, VAR_ANG1, VAR_ANG05, VAR_N_SD, VAR_C11_SD, VAR_C10_SD, VAR_ANG1_SD,
-        NUM_VARS
-    };
-    static const size_t WEIGHT_INSERT_POINT = 1;
-    static const size_t Z_INSERT_POINT = 8;
-    static const size_t FLAG_INSERT_POINT = 13;
-};
+Format NewerFormat({
+    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_N_SD",
+});
+
+Format NewFormat({
+    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_C11", "VAR_C10", "VAR_ANG1", "VAR_ANG05", "VAR_N_SD", "VAR_C11_SD", "VAR_C10_SD", "VAR_ANG1_SD",
+});
 
 using Jet = std::vector<double>;
 
-template<class Format>
 struct CutClause {
-    typename Format::Vars var;
+    size_t varIndex;
     double min;
     double max;
 
     bool matches(const Jet& jet) const {
-        if (size_t(var) >= jet.size()) {
-            throw std::out_of_range("Variable " + std::to_string(size_t(var)) + " out of range");
+        if (varIndex >= jet.size()) {
+            throw std::out_of_range("Variable " + std::to_string(varIndex) + " out of range");
         }
-        return min <= jet[size_t(var)] && jet[size_t(var)] <= max;
+        return min <= jet[varIndex] && jet[varIndex] <= max;
     }
 };
 
-template<class Format>
-using Cut = std::vector<CutClause<Format>>;
+using Cut = std::vector<CutClause>;
 
 struct CutJetsResult {
     double csOnW = 0;
     std::vector<std::vector<Jet>> jetsList;
 };
 
-template<class Format>
-CutJetsResult getCutJets(const char* filename, size_t takeNum, const std::vector<Cut<Format>>& cuts, size_t skipNum, bool strict) {
+CutJetsResult getCutJets(const Format& format, const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
     LineReader reader{filename};
 
     double totalWeight = 0;
@@ -141,17 +154,17 @@ CutJetsResult getCutJets(const char* filename, size_t takeNum, const std::vector
             }
 
             Jet jet;
-            jet.reserve(size_t(Format::Vars::NUM_VARS));
+            jet.reserve(format.numVars());
             reader.readCommaSeparatedDoubles(&jet);
 
-            jet.insert(jet.begin() + Format::WEIGHT_INSERT_POINT, weight);
-            jet.insert(jet.begin() + Format::Z_INSERT_POINT, std::begin(zData), std::end(zData));
-            jet.insert(jet.begin() + Format::FLAG_INSERT_POINT, isGluon1);
-            jet.insert(jet.begin() + Format::FLAG_INSERT_POINT+1, isGluon2);
+            jet.insert(jet.begin() + format.weightInsertPoint, weight);
+            jet.insert(jet.begin() + format.zInsertPoint, std::begin(zData), std::end(zData));
+            jet.insert(jet.begin() + format.flagInsertPoint, isGluon1);
+            jet.insert(jet.begin() + format.flagInsertPoint + 1, isGluon2);
 
-            if (jet.size() != size_t(Format::Vars::NUM_VARS)) {
+            if (jet.size() != format.numVars()) {
                 throw std::length_error(
-                    std::string("Expected jet to have ") + std::to_string(size_t(Format::Vars::NUM_VARS)) +
+                    std::string("Expected jet to have ") + std::to_string(format.numVars()) +
                     " values, but encountered " + std::to_string(jet.size()));
             }
 
@@ -176,30 +189,45 @@ CutJetsResult getCutJets(const char* filename, size_t takeNum, const std::vector
 }
 
 int main(int argc, char** argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: get_cuts input.txt" << std::endl;
+    std::vector<std::string> args(argv+1, argv+argc);
+    if (args.size() < 5) {
+        std::cerr << "Usage: get_cuts [--new|--newer] input.txt VAR_1 min1 max1 VAR_2 min2 max2 ..." << std::endl;
         return 1;
     }
 
+    // iterator to help consume arguments one by one
+    auto currentArg = args.begin();
 
-    std::vector<Cut<NewFormat>> cuts;
-    for (size_t minPT = 75; minPT <= 250; minPT += 5) {
-        cuts.push_back({
-            {NewFormat::Vars::VAR_PT, double(minPT), double(minPT + 5)},
-            {NewFormat::Vars::VAR_RAP, -2, 2},
-            {NewFormat::Vars::VAR_CONST, 1, 100},
-            {NewFormat::Vars::VAR_M, 0, 60},
-            {NewFormat::Vars::VAR_C11, 0, 1},
-            {NewFormat::Vars::VAR_C10, 0, 1},
-            {NewFormat::Vars::VAR_ANG1, 0, 1},
-            {NewFormat::Vars::VAR_ANG05, 0, 1},
-            {NewFormat::Vars::VAR_N_SD, 1, 100},
-            {NewFormat::Vars::VAR_C11_SD, 0, 1},
-            {NewFormat::Vars::VAR_C10_SD, 0, 1},
-            {NewFormat::Vars::VAR_ANG1_SD, 0, 1},
-        });
+    const Format* format;
+    {
+        const auto& formatArg = *currentArg++;
+        if (formatArg == "--new") {
+            format = &NewFormat;
+        } else if (formatArg == "--newer") {
+            format = &NewerFormat;
+        } else {
+            throw std::runtime_error("Expected --new or --newer");
+        }
     }
-    CutJetsResult result = getCutJets(argv[1], 2, cuts, 0, true);
+
+    const auto& filename = *currentArg++;
+    if ((args.end() - currentArg) % 3 != 0) {
+        throw std::runtime_error(
+            "Wrong number of arguments after filename; expected multiple of 3 but have "
+            + std::to_string(currentArg - args.begin()));
+    }
+
+    // only support a single cut for now; could change this,
+    // but would need a way to delineate the cuts in the list of arguments
+    Cut cut;
+    while (currentArg != args.end()) {
+        size_t varIndex = format->var(*currentArg++);
+        double min = std::atof((*currentArg++).c_str());
+        double max = std::atof((*currentArg++).c_str());
+        cut.push_back({varIndex, min, max});
+    }
+
+    CutJetsResult result = getCutJets(*format, filename.c_str(), 2, {cut}, 0, true);
     
     // Naive output as CSV
     std::printf("# crossSection / totalWeight = %lf\n", result.csOnW);
