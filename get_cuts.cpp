@@ -214,7 +214,7 @@ int main(int argc, char** argv) {
     if ((args.end() - currentArg) % 3 != 0) {
         throw std::runtime_error(
             "Wrong number of arguments after filename; expected multiple of 3 but have "
-            + std::to_string(currentArg - args.begin()));
+            + std::to_string(args.end() - currentArg));
     }
 
     // only support a single cut for now; could change this,
