@@ -63,11 +63,42 @@ struct CutClause {
     }
 };
 
-using Cut = std::vector<CutClause>;
+struct HistogramSpec {
+    size_t varIndex;
+    std::vector<double> binEndpoints;
+};
+
+struct Histogram {
+    const HistogramSpec spec;
+    std::vector<double> binSums;
+
+    Histogram(const HistogramSpec& spec) : spec(spec) {
+        if (spec.binEndpoints.size() < 2) {
+            throw std::invalid_argument("HistogramSpec must have at least 2 bin endpoints");
+        }
+        binSums.resize(spec.binEndpoints.size() - 1, 0);
+    }
+
+    void add(double weight, const Jet& jet) {
+        auto iter = std::lower_bound(spec.binEndpoints.begin(), spec.binEndpoints.end(), jet[spec.varIndex]);
+        size_t binIdx = iter - spec.binEndpoints.begin();
+        if (binIdx == 0 || binIdx + 1 >= spec.binEndpoints.size()) {
+            // value falls outside all bins
+            return;
+        }
+        binSums[binIdx] += weight;
+    }
+};
+
+struct Cut {
+    std::vector<CutClause> clauses;
+    std::vector<HistogramSpec> histogramSpecs;
+};
 
 struct CutJetsResult {
     double csOnW = 0;
-    std::vector<std::vector<Jet>> jetsList;
+    std::vector<std::vector<Histogram>> histograms;
+    // std::vector<std::vector<Jet>> jetsList;
 };
 
 CutJetsResult getCutJets(const Format& format, const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
@@ -77,7 +108,14 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
     double crossSection = NAN;  // keep this outside the loop so we can return the last value
 
     CutJetsResult result;
-    result.jetsList.resize(cuts.size());
+    // result.jetsList.resize(cuts.size());
+    // Initialize histograms based on the specs for each cut
+    for (const auto& cut : cuts) {
+        auto& histogram = result.histograms.emplace_back();
+        for (const auto& spec : cut.histogramSpecs) {
+            histogram.emplace_back(spec);
+        }
+    }
 
     reader.nextLine(); // skip header line
 
@@ -173,12 +211,12 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
                     continue;
                 }
 
-                bool matches = std::all_of(cuts[i].begin(), cuts[i].end(), [&](const auto& clause) {
+                bool matches = std::all_of(cuts[i].clauses.begin(), cuts[i].clauses.end(), [&](const auto& clause) {
                     return clause.matches(jet);
                 });
                 if (matches) {
                     jetsTaken[i]++;
-                    result.jetsList[i].push_back(jet);
+                    // result.jetsList[i].push_back(jet);
                 }
             }
         } while (reader.nextLine());
@@ -231,24 +269,24 @@ int main(int argc, char** argv) {
         size_t varIndex = format->var(varName);
         double min = std::atof((*currentArg++).c_str());
         double max = std::atof((*currentArg++).c_str());
-        cut.push_back({varIndex, min, max});
+        cut.clauses.push_back({varIndex, min, max});
     }
     cuts.push_back(cut);
 
     CutJetsResult result = getCutJets(*format, filename.c_str(), takeNum, cuts, 0, true);
 
     // Naive output as CSV
-    std::printf("%lf\n", result.csOnW);
-    for (size_t i = 0; i < result.jetsList.size(); i++) {
-        // std::printf("# Cut %zu: %zu jets taken\n", i, result.jetsList[i].size());
-        for (const auto& jet : result.jetsList[i]) {
-            for (double val : jet) {
-                std::printf("%lg,", val);
-            }
-            std::printf("\n");
-        }
-        std::printf("\n\n");
-    }
+    // std::printf("%lf\n", result.csOnW);
+    // for (size_t i = 0; i < result.jetsList.size(); i++) {
+    //     // std::printf("# Cut %zu: %zu jets taken\n", i, result.jetsList[i].size());
+    //     for (const auto& jet : result.jetsList[i]) {
+    //         for (double val : jet) {
+    //             std::printf("%lg,", val);
+    //         }
+    //         std::printf("\n");
+    //     }
+    //     std::printf("\n\n");
+    // }
 
     return 0;
 }
