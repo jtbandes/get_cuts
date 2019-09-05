@@ -41,11 +41,11 @@ struct Format {
 };
 
 Format NewerFormat({
-    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_N_SD",
+    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_CONST_SD",
 });
 
 Format NewFormat({
-    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_C11", "VAR_C10", "VAR_ANG1", "VAR_ANG05", "VAR_N_SD", "VAR_C11_SD", "VAR_C10_SD", "VAR_ANG1_SD",
+    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_C11", "VAR_C10", "VAR_ANG1", "VAR_ANG05", "VAR_CONST_SD", "VAR_C11_SD", "VAR_C10_SD", "VAR_ANG1_SD",
 });
 
 using Jet = std::vector<double>;
@@ -156,7 +156,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
         if (reader.peek() == 'M') {
             double muData1[4];
             double muData2[4];
-            
+
             reader.skip('M');
             std::generate_n(std::begin(muData1), 4, [&] { return reader.readDouble(); });
             if (!reader.nextLine()) throw std::runtime_error("Ended after first M line");
@@ -229,7 +229,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
 int main(int argc, char** argv) {
     std::vector<std::string> args(argv+1, argv+argc);
     if (args.size() < 5) {
-        std::cerr << "Usage: get_cuts [--new|--newer] input.txt VAR_1 min1 max1 VAR_2 min2 max2 ..." << std::endl;
+        std::cerr << "Usage: get_cuts [--new|--newer] input.txt takeNum VAR_1 min1 max1 VAR_2 min2 max2 ..." << std::endl;
         return 1;
     }
 
@@ -249,31 +249,39 @@ int main(int argc, char** argv) {
     }
 
     const auto& filename = *currentArg++;
-    if ((args.end() - currentArg) % 3 != 0) {
-        throw std::runtime_error(
-            "Wrong number of arguments after filename; expected multiple of 3 but have "
-            + std::to_string(args.end() - currentArg));
-    }
+    // if ((args.end() - currentArg) % 3 != 0) {
+    //     throw std::runtime_error(
+    //         "Wrong number of arguments after filename; expected multiple of 3 but have "
+    //         + std::to_string(args.end() - currentArg));
+    // }
 
-    // only support a single cut for now; could change this,
-    // but would need a way to delineate the cuts in the list of arguments
+    const int takeNum = std::atoi((*currentArg++).c_str());
+
+    std::vector<Cut> cuts;
     Cut cut;
     while (currentArg != args.end()) {
-        size_t varIndex = format->var(*currentArg++);
+        std::string varName = *currentArg++;
+        if (varName == "new_cut") { // start a new cut
+          cuts.push_back(cut);
+          cut = {};
+          continue;
+        }
+        size_t varIndex = format->var(varName);
         double min = std::atof((*currentArg++).c_str());
         double max = std::atof((*currentArg++).c_str());
         cut.clauses.push_back({varIndex, min, max});
     }
+    cuts.push_back(cut);
 
-    CutJetsResult result = getCutJets(*format, filename.c_str(), 2, {cut}, 0, true);
-    
+    CutJetsResult result = getCutJets(*format, filename.c_str(), takeNum, cuts, 0, true);
+
     // Naive output as CSV
-    // std::printf("# crossSection / totalWeight = %lf\n", result.csOnW);
+    // std::printf("%lf\n", result.csOnW);
     // for (size_t i = 0; i < result.jetsList.size(); i++) {
-    //     std::printf("# Cut %zu: %zu jets taken\n", i, result.jetsList[i].size());
+    //     // std::printf("# Cut %zu: %zu jets taken\n", i, result.jetsList[i].size());
     //     for (const auto& jet : result.jetsList[i]) {
     //         for (double val : jet) {
-    //             std::printf("%lf,", val);
+    //             std::printf("%lg,", val);
     //         }
     //         std::printf("\n");
     //     }
