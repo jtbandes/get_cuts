@@ -69,10 +69,10 @@ struct HistogramSpec {
 };
 
 struct Histogram {
-    HistogramSpec spec;
+    const HistogramSpec spec;
     std::vector<double> binSums;
 
-    Histogram(const HistogramSpec& spec) {
+    Histogram(const HistogramSpec& spec) : spec(spec) {
         if (spec.binEndpoints.size() < 2) {
             throw std::invalid_argument("HistogramSpec must have at least 2 bin endpoints");
         }
@@ -110,9 +110,10 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
     CutJetsResult result;
     // result.jetsList.resize(cuts.size());
     // Initialize histograms based on the specs for each cut
-    for (size_t cutIdx = 0; cutIdx < cuts.size(); cutIdx++) {
-        for (const auto& spec : cuts[cutIdx].histogramSpecs) {
-            result.histograms[cutIdx].emplace_back(spec);
+    for (const auto& cut : cuts) {
+        auto& histogram = result.histograms.emplace_back();
+        for (const auto& spec : cut.histogramSpecs) {
+            histogram.emplace_back(spec);
         }
     }
 
