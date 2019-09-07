@@ -1,5 +1,12 @@
+#pragma once
+
+#if !defined(__cplusplus) || __cplusplus < 201703L
+#error "This file requires C++17"
+#endif
+
 #include <cstdint>
 #include <istream>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -46,6 +53,10 @@ struct CutClause {
         }
         return min <= jet[varIndex] && jet[varIndex] <= max;
     }
+
+    bool operator==(const CutClause& other) const {
+        return varIndex == other.varIndex && min == other.min && max == other.max;
+    }
 };
 
 struct Cut {
@@ -86,15 +97,21 @@ struct GetCutJetsSpec {
     std::vector<Cut> cuts;
 
     // Initialize by reading from a specification file (or stdin)
+    GetCutJetsSpec(const Format& format, std::string&& str) : GetCutJetsSpec(format, std::istringstream(str)) { }
+    GetCutJetsSpec(const Format& format, std::istream&& stream) : GetCutJetsSpec(format, stream) { }
     GetCutJetsSpec(const Format& format, std::istream& stream) {
         auto nextWord = [&](const std::string& description) {
+            if (stream.eof()) {
+                throw std::runtime_error("Expected " + description + " in spec");
+            }
             std::string str;
             stream >> str;
-            if (stream.eof()) {
-                throw std::runtime_error("Not enough arguments; expected " + description);
-            }
             if (!stream) {
-                throw std::runtime_error("Error reading arguments; expected " + description);
+                if (str.empty()) {
+                    throw std::runtime_error("Expected " + description + " in spec");
+                } else if (!stream.eof()) {
+                    throw std::runtime_error("Error reading spec; expected " + description);
+                }
             }
             return str;
         };
@@ -124,16 +141,19 @@ struct GetCutJetsSpec {
         }
 
         Cut cut;
-        while (stream) {
+        // This looks horrible, but actually it is. Check whether there's any more to read after consuming whitespace.
+        while (stream && stream >> std::ws && stream.peek() != std::istream::traits_type::eof()) {
             std::string directive = nextWord("variable name, new_cut, histogram_ints, or histogram");
             if (directive == "new_cut") {
-                if (cut.clauses.empty()) {
-                    throw std::runtime_error("Encountered new_cut, but previous cut didn't have any clauses");
-                } else if (cut.intHistograms.empty() && cut.binHistograms.empty()) {
-                    throw std::runtime_error("Encountered new_cut, but previous cut didn't have any histograms");
+                if (!cut.clauses.empty() || !cut.intHistograms.empty() || !cut.binHistograms.empty()) {
+                    if (cut.clauses.empty()) {
+                        throw std::runtime_error("Encountered new_cut, but previous cut didn't have any clauses");
+                    } else if (cut.intHistograms.empty() && cut.binHistograms.empty()) {
+                        throw std::runtime_error("Encountered new_cut, but previous cut didn't have any histograms");
+                    }
+                    cuts.push_back(cut);
+                    cut = {};
                 }
-                cuts.push_back(cut);
-                cut = {};
             } else if (directive == "histogram_ints:") {
                 std::string varName = nextWord("variable name");
                 size_t varIndex = format.var(varName);
