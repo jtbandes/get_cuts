@@ -141,19 +141,24 @@ struct GetCutJetsSpec {
         }
 
         Cut cut;
+
+        auto finishCut = [&] {
+            if (!cut.clauses.empty() || !cut.intHistograms.empty() || !cut.binHistograms.empty()) {
+                if (cut.clauses.empty()) {
+                    throw std::runtime_error("Cut didn't have any clauses");
+                } else if (cut.intHistograms.empty() && cut.binHistograms.empty()) {
+                    throw std::runtime_error("Cut didn't have any histograms");
+                }
+                cuts.push_back(cut);
+                cut = {};
+            }
+        };
+
         // This looks horrible, but actually it is. Check whether there's any more to read after consuming whitespace.
         while (stream && stream >> std::ws && stream.peek() != std::istream::traits_type::eof()) {
             std::string directive = nextWord("variable name, new_cut, histogram_ints, or histogram");
             if (directive == "new_cut") {
-                if (!cut.clauses.empty() || !cut.intHistograms.empty() || !cut.binHistograms.empty()) {
-                    if (cut.clauses.empty()) {
-                        throw std::runtime_error("Encountered new_cut, but previous cut didn't have any clauses");
-                    } else if (cut.intHistograms.empty() && cut.binHistograms.empty()) {
-                        throw std::runtime_error("Encountered new_cut, but previous cut didn't have any histograms");
-                    }
-                    cuts.push_back(cut);
-                    cut = {};
-                }
+                finishCut();
             } else if (directive == "histogram_ints:") {
                 std::string varName = nextWord("variable name");
                 size_t varIndex = format.var(varName);
@@ -173,14 +178,7 @@ struct GetCutJetsSpec {
             }
         }
 
-        if (!cut.clauses.empty() || !cut.intHistograms.empty() || !cut.binHistograms.empty()) {
-            if (cut.clauses.empty()) {
-                throw std::runtime_error("Last cut didn't have any clauses");
-            } else if (cut.intHistograms.empty() && cut.binHistograms.empty()) {
-                throw std::runtime_error("Last cut didn't have any histograms");
-            }
-            cuts.push_back(cut);
-        }
+        finishCut();
     }
 };
 
