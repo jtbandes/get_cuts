@@ -121,37 +121,66 @@ static void testIntHistogram() {
     h.add(0.5, {0, 1, 2});
     h.add(0.1, {0, 1, 1});
     h.add(2.0, {6, 4, 6});
+    h.finish();
 
-    assert(h.binSums[1] == 0.5 + 0.1);
-    assert(h.binSums[4] == 2.0);
+    assert(h.totalWeight == 0.5 + 0.1 + 2.0);
+    assert(h.totalErr == 0.25 + 0.01 + 4.0);
+    assert(h.binSums[1] == (0.5 + 0.1) / h.totalWeight);
+    assert(h.binSums[4] == (2.0) / h.totalWeight);
+
+    assert(h.binErrs[1] == std::sqrt(0.25 + 0.01) / h.totalWeight);
+    assert(h.binErrs[4] == std::sqrt(4.0) / h.totalWeight);
 }
 
 static void testBinHistogram() {
-    BinHistogram h(1, 2.0, 7.0, 5);
+    BinHistogram h(1, 2.0, 5.0, 6);
 
-    assert(vectorsEqual(h.binEndpoints, {2.0, 3.0, 4.0, 5.0, 6.0, 7.0}));
+    assert(h.binWidth == 0.5);
+    assert(vectorsEqual(h.binEndpoints, {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0}));
 
     // before first bin
     h.add(1, {0, std::nextafter(2.0, 0)});
-    // [2, 3)
+    // [2, 2.5)
     h.add(0.1, {0, 2.0});
-    h.add(0.2, {0, std::nextafter(3.0, 0)});
-    // [3, 4)
-    h.add(0.3, {0, 3.0});
-    h.add(0.4, {0, std::nextafter(4.0, 0)});
-    // [4, 5)
-    h.add(0.5, {0, 4.0});
-    h.add(0.6, {0, std::nextafter(5.0, 0)});
-    // [5, 6)
-    h.add(0.7, {0, 5.0});
-    h.add(0.8, {0, std::nextafter(6.0, 0)});
-    // [6, 7]
-    h.add(0.9, {0, 6.0});
-    h.add(1.0, {0, 7.0});
+    h.add(0.2, {0, std::nextafter(2.5, 0)});
+    // [2.5, 3)
+    h.add(0.3, {0, 2.5});
+    h.add(0.4, {0, std::nextafter(3.0, 0)});
+    // [3, 3.5)
+    h.add(0.5, {0, 3.0});
+    h.add(0.6, {0, std::nextafter(3.5, 0)});
+    // [3.5, 4)
+    h.add(0.7, {0, 3.5});
+    h.add(0.8, {0, std::nextafter(4.0, 0)});
+    // [4, 4.5)
+    h.add(0.9, {0, 4.0});
+    h.add(1.0, {0, std::nextafter(4.5, 0)});
+    // [4.5, 5]
+    h.add(1.1, {0, 4.5});
+    h.add(1.2, {0, 5.0});
     // beyond last bin
-    h.add(1.1, {0, std::nextafter(7.0, 8)});
+    h.add(1.3, {0, std::nextafter(5.0, 8)});
 
-    assert(vectorsEqual(h.binSums, {0.1 + 0.2, 0.3 + 0.4, 0.5 + 0.6, 0.7 + 0.8, 0.9 + 1.0}));
+    h.finish();
+
+    assert(h.totalWeight == 0.1 + 0.2 + 0.3 + 0.4 + 0.5 + 0.6 + 0.7 + 0.8 + 0.9 + 1.0 + 1.1 + 1.2);
+    assert(h.totalErr == 0.01 + 0.04 + 0.09 + 0.16 + 0.25 + 0.36 + 0.49 + 0.64 + 0.81 + 1.0 + 1.21 + 1.44);
+    assert(vectorsEqual(h.binSums, {
+        (0.1 + 0.2) / h.binWidth / h.totalWeight,
+        (0.3 + 0.4) / h.binWidth / h.totalWeight,
+        (0.5 + 0.6) / h.binWidth / h.totalWeight,
+        (0.7 + 0.8) / h.binWidth / h.totalWeight,
+        (0.9 + 1.0) / h.binWidth / h.totalWeight,
+        (1.1 + 1.2) / h.binWidth / h.totalWeight,
+    }));
+    assert(vectorsEqual(h.binErrs, {
+        std::hypot(0.1, 0.2) / h.binWidth / h.totalWeight,
+        std::hypot(0.3, 0.4) / h.binWidth / h.totalWeight,
+        std::hypot(0.5, 0.6) / h.binWidth / h.totalWeight,
+        std::hypot(0.7, 0.8) / h.binWidth / h.totalWeight,
+        std::hypot(0.9, 1.0) / h.binWidth / h.totalWeight,
+        std::hypot(1.1, 1.2) / h.binWidth / h.totalWeight,
+    }));
 }
 
 void runTests() {

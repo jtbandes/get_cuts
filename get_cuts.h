@@ -83,11 +83,26 @@ struct CutResult {
             hist.add(weight, jet);
         }
     }
+
+    void finish() {
+        for (auto& hist : intHistograms) {
+            hist.finish();
+        }
+        for (auto& hist : binHistograms) {
+            hist.finish();
+        }
+    }
 };
 
 struct CutJetsResult {
     double csOnW = 0;
     std::vector<CutResult> cutResults;
+
+    void finish() {
+        for (auto& cutResult : cutResults) {
+            cutResult.finish();
+        }
+    }
 };
 
 struct GetCutJetsSpec {

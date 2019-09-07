@@ -4,15 +4,19 @@
 #error "This file requires C++17"
 #endif
 
+#include <cmath>
 #include <cstdint>
 #include <string>
-#include <unordered_map>
+#include <map>
 
 #include "Jet.h"
 
 struct IntHistogram {
     size_t varIndex;
-    std::unordered_map<intmax_t, double> binSums;
+    double totalWeight;
+    double totalErr;
+    std::map<intmax_t, double> binSums;
+    std::map<intmax_t, double> binErrs;
 
     IntHistogram(size_t varIndex) : varIndex(varIndex) {}
 
@@ -23,15 +27,34 @@ struct IntHistogram {
         }
         intmax_t key = intmax_t(val);
         binSums[key] += weight;
+        binErrs[key] += weight * weight;
+        totalWeight += weight;
+        totalErr += weight * weight;
+    }
+
+    void finish() {
+        for (auto& [k, v] : binSums) {
+            v /= totalWeight;
+        }
+        for (auto& [k, v] : binErrs) {
+            v = std::sqrt(v) / totalWeight;
+        }
     }
 };
 
 struct BinHistogram {
-    size_t varIndex;
+    const size_t varIndex;
+    const double binWidth;
+    double totalWeight = 0;
+    double totalErr = 0;
     std::vector<double> binEndpoints;
     std::vector<double> binSums;
+    std::vector<double> binErrs;
 
-    BinHistogram(size_t varIndex, double min, double max, size_t nBins) : varIndex(varIndex) {
+    BinHistogram(size_t varIndex, double min, double max, size_t nBins)
+        : varIndex(varIndex)
+        , binWidth((max - min) / nBins)
+    {
         if (nBins == 0) {
             throw std::invalid_argument("Histogram must have at least 1 bin");
         }
@@ -39,6 +62,7 @@ struct BinHistogram {
             binEndpoints.push_back(min + (max - min) * i / nBins);
         }
         binSums.resize(nBins, 0);
+        binErrs.resize(nBins, 0);
     }
 
     void add(double weight, const Jet& jet) {
@@ -47,12 +71,28 @@ struct BinHistogram {
         size_t binIdx = iter - binEndpoints.begin();
         if (binIdx == 0) {
             // value is less than all bins
-            return;
         } else if (binIdx <= binSums.size()) {
             binSums[binIdx - 1] += weight;
+            binErrs[binIdx - 1] += weight * weight;
+            totalWeight += weight;
+            totalErr += weight * weight;
         } else if (val == binEndpoints.back()) {
             // value falls in last bin (inclusive)
             binSums.back() += weight;
+            binErrs.back() += weight * weight;
+            totalWeight += weight;
+            totalErr += weight * weight;
+        } else {
+            // value is greater than all bins
+        }
+    }
+
+    void finish() {
+        for (auto& v : binSums) {
+            v = v / binWidth / totalWeight;
+        }
+        for (auto& v : binErrs) {
+            v = std::sqrt(v) / binWidth / totalWeight;
         }
     }
 };

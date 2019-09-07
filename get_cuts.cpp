@@ -132,5 +132,6 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
     }
 
     result.csOnW = crossSection / totalWeight;
+    result.finish();
     return result;
 }
