@@ -173,13 +173,16 @@ static void testBinHistogram() {
         (0.9 + 1.0) / h.binWidth / h.totalWeight,
         (1.1 + 1.2) / h.binWidth / h.totalWeight,
     }));
+    auto exact_hypot = [](double a, double b) {
+        return std::sqrt(a * a + b * b);
+    };
     assert(vectorsEqual(h.binErrs, {
-        std::hypot(0.1, 0.2) / h.binWidth / h.totalWeight,
-        std::hypot(0.3, 0.4) / h.binWidth / h.totalWeight,
-        std::hypot(0.5, 0.6) / h.binWidth / h.totalWeight,
-        std::hypot(0.7, 0.8) / h.binWidth / h.totalWeight,
-        std::hypot(0.9, 1.0) / h.binWidth / h.totalWeight,
-        std::hypot(1.1, 1.2) / h.binWidth / h.totalWeight,
+        exact_hypot(0.1, 0.2) / h.binWidth / h.totalWeight,
+        exact_hypot(0.3, 0.4) / h.binWidth / h.totalWeight,
+        exact_hypot(0.5, 0.6) / h.binWidth / h.totalWeight,
+        exact_hypot(0.7, 0.8) / h.binWidth / h.totalWeight,
+        exact_hypot(0.9, 1.0) / h.binWidth / h.totalWeight,
+        exact_hypot(1.1, 1.2) / h.binWidth / h.totalWeight,
     }));
 }
 
