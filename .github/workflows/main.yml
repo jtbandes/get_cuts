@@ -7,6 +7,6 @@ jobs:
     steps:
     - uses: actions/checkout@v1
     - name: install libc++
-      run: apt install libc++
+      run: sudo apt install libc++
     - name: make
       run: make
