@@ -12,13 +12,16 @@
 #include "Jet.h"
 
 struct IntHistogram {
-    size_t varIndex;
+    const std::string varName;
+    const size_t varIndex;
     double totalWeight;
     double totalErr;
     std::map<intmax_t, double> binSums;
     std::map<intmax_t, double> binErrs;
 
-    IntHistogram(size_t varIndex) : varIndex(varIndex) {}
+    IntHistogram(const std::string& varName, size_t varIndex)
+        : varName(varName)
+        , varIndex(varIndex) {}
 
     void add(double weight, const Jet& jet) {
         double val = jet[varIndex];
@@ -43,6 +46,7 @@ struct IntHistogram {
 };
 
 struct BinHistogram {
+    const std::string varName;
     const size_t varIndex;
     const double binWidth;
     double totalWeight = 0;
@@ -51,8 +55,9 @@ struct BinHistogram {
     std::vector<double> binSums;
     std::vector<double> binErrs;
 
-    BinHistogram(size_t varIndex, double min, double max, size_t nBins)
-        : varIndex(varIndex)
+    BinHistogram(const std::string& varName, size_t varIndex, double min, double max, size_t nBins)
+        : varName(varName)
+        , varIndex(varIndex)
         , binWidth((max - min) / nBins)
     {
         if (nBins == 0) {

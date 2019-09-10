@@ -1,1 +1,1 @@
-int runTests();
+void runTests();

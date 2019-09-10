@@ -116,7 +116,7 @@ static void testParseSpec() {
 }
 
 static void testIntHistogram() {
-    IntHistogram h(1);
+    IntHistogram h("foo", 1);
 
     h.add(0.5, {0, 1, 2});
     h.add(0.1, {0, 1, 1});
@@ -133,7 +133,7 @@ static void testIntHistogram() {
 }
 
 static void testBinHistogram() {
-    BinHistogram h(1, 2.0, 5.0, 6);
+    BinHistogram h("foo", 1, 2.0, 5.0, 6);
 
     assert(h.binWidth == 0.5);
     assert(vectorsEqual(h.binEndpoints, {2.0, 2.5, 3.0, 3.5, 4.0, 4.5, 5.0}));

@@ -177,14 +177,14 @@ struct GetCutJetsSpec {
             } else if (directive == "histogram_ints:") {
                 std::string varName = nextWord("variable name");
                 size_t varIndex = format.var(varName);
-                cut.intHistograms.emplace_back(varIndex);
+                cut.intHistograms.emplace_back(varName, varIndex);
             } else if (directive == "histogram:") {
                 std::string varName = nextWord("variable name");
                 size_t varIndex = format.var(varName);
                 double min = std::atof(nextWord("min value for " + varName).c_str());
                 double max = std::atof(nextWord("max value for " + varName).c_str());
                 size_t numBins = std::atoi(nextWord("number of bins for " + varName).c_str());
-                cut.binHistograms.emplace_back(varIndex, min, max, numBins);
+                cut.binHistograms.emplace_back(varName, varIndex, min, max, numBins);
             } else {
                 size_t varIndex = format.var(directive);
                 double min = std::atof(nextWord("min value for " + directive).c_str());
