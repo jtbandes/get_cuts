@@ -5,6 +5,7 @@
 #endif
 
 #include <cstdio>
+#include <cstring>
 #include <memory>
 #include <system_error>
 #include <vector>
