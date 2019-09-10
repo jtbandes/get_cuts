@@ -1,3 +1,5 @@
+#include <cinttypes>
+#include <cstdint>
 #include <iostream>
 #include <string>
 #include <vector>
@@ -59,6 +61,24 @@ Spec file format:
 
     GetCutJetsSpec spec(*format, std::cin);
     CutJetsResult result = getCutJets(*format, filename.c_str(), spec);
+
+    std::printf("%lf\n", result.csOnW);
+    for (const auto& cutResult : result.cutResults) {
+        std::printf("----------------------------------\n");
+        for (const auto& hist : cutResult.intHistograms) {
+            std::printf("%s\n", hist.varName.c_str());
+            for (const auto& [k, v] : hist.binSums) {
+                std::printf("%" PRIdMAX ": %lf err %lf\n", k, v, hist.binErrs.at(k));
+            }
+        }
+        for (const auto& hist : cutResult.binHistograms) {
+            std::printf("%s\n", hist.varName.c_str());
+            for (size_t i = 0; i < hist.binSums.size(); i++) {
+                std::printf("%lf-%lf: %lf err %lf\n",
+                    hist.binEndpoints[i], hist.binEndpoints[i+1], hist.binSums[i], hist.binErrs[i]);
+            }
+        }
+    }
 
     // Naive output as CSV
     // std::printf("%lf\n", result.csOnW);
