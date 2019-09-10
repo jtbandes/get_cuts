@@ -6,7 +6,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v1
-    - name: install libc++
-      run: sudo apt install libc++
+
+    # from https://apt.llvm.org
+    - name: install build dependencies
+      run: sudo apt install apt-get install clang-format clang-tidy clang-tools clang clangd libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 liblldb-dev libllvm-ocaml-dev libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm python-clang
+
     - name: make
       run: make
