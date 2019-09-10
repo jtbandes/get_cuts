@@ -9,7 +9,10 @@ jobs:
 
     # from https://apt.llvm.org
     - name: install build dependencies
-      run: sudo apt install apt-get install clang-format clang-tidy clang-tools clang clangd libc++-dev libc++1 libc++abi-dev libc++abi1 libclang-dev libclang1 liblldb-dev libllvm-ocaml-dev libomp-dev libomp5 lld lldb llvm-dev llvm-runtime llvm python-clang
+      run: |
+        sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
+        sudo apt update
+        sudo apt install clang-8 lldb-8 lld-8 libc++-8-dev libc++abi-8-dev
 
     - name: make
       run: make
