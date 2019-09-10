@@ -11,8 +11,8 @@ jobs:
     - name: install build dependencies
       run: |
         sudo add-apt-repository "deb http://apt.llvm.org/xenial/ llvm-toolchain-xenial main"
-        sudo apt update
-        sudo apt install clang-8 lldb-8 lld-8 libc++-8-dev libc++abi-8-dev
+        sudo apt-get update
+        sudo apt-get install clang-8 lldb-8 lld-8 libc++-8-dev libc++abi-8-dev
 
     - name: make
-      run: make
+      run: CXX=clang++-8 make
