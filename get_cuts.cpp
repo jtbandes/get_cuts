@@ -3,6 +3,7 @@
 #endif
 
 #include <algorithm>
+#include <cassert>
 #include <cmath>
 #include <cstdio>
 #include <iostream>
@@ -10,111 +11,23 @@
 #include <vector>
 
 #include "LineReader.h"
+#include "get_cuts.h"
 
-size_t indexOf(const std::vector<std::string>& v, const std::string& x) {
-    if (auto found = std::find(v.begin(), v.end(), x); found != v.end()) {
-        return found - v.begin();
-    }
-    throw std::runtime_error(x + " not found");
-}
 
-struct Format {
-    const std::vector<std::string> vars;
-    const size_t weightInsertPoint;
-    const size_t zInsertPoint;
-    const size_t flagInsertPoint;
-
-    Format(const std::vector<std::string>& vars)
-        : vars(vars)
-        , weightInsertPoint(indexOf(vars, "VAR_WEIGHT"))
-        , zInsertPoint(indexOf(vars, "Z_PX"))
-        , flagInsertPoint(indexOf(vars, "GLUON_FLAG_1"))
-    {}
-
-    size_t numVars() const {
-        return vars.size();
-    }
-
-    size_t var(const std::string& name) const {
-        return indexOf(vars, name);
-    }
-};
-
-Format NewerFormat({
-    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_CONST_SD",
-});
-
-Format NewFormat({
-    "VAR_NUM", "VAR_WEIGHT", "VAR_PT", "VAR_PSEUDORAP", "VAR_PHI", "VAR_M", "VAR_CONST", "VAR_RAP", "Z_PX", "Z_PY", "Z_PZ", "Z_E", "Z_RAP", "GLUON_FLAG_1", "GLUON_FLAG_2", "VAR_C11", "VAR_C10", "VAR_ANG1", "VAR_ANG05", "VAR_CONST_SD", "VAR_C11_SD", "VAR_C10_SD", "VAR_ANG1_SD",
-});
-
-using Jet = std::vector<double>;
-
-struct CutClause {
-    size_t varIndex;
-    double min;
-    double max;
-
-    bool matches(const Jet& jet) const {
-        if (varIndex >= jet.size()) {
-            throw std::out_of_range("Variable " + std::to_string(varIndex) + " out of range");
-        }
-        return min <= jet[varIndex] && jet[varIndex] <= max;
-    }
-};
-
-struct HistogramSpec {
-    size_t varIndex;
-    std::vector<double> binEndpoints;
-};
-
-struct Histogram {
-    const HistogramSpec spec;
-    std::vector<double> binSums;
-
-    Histogram(const HistogramSpec& spec) : spec(spec) {
-        if (spec.binEndpoints.size() < 2) {
-            throw std::invalid_argument("HistogramSpec must have at least 2 bin endpoints");
-        }
-        binSums.resize(spec.binEndpoints.size() - 1, 0);
-    }
-
-    void add(double weight, const Jet& jet) {
-        auto iter = std::lower_bound(spec.binEndpoints.begin(), spec.binEndpoints.end(), jet[spec.varIndex]);
-        size_t binIdx = iter - spec.binEndpoints.begin();
-        if (binIdx == 0 || binIdx + 1 >= spec.binEndpoints.size()) {
-            // value falls outside all bins
-            return;
-        }
-        binSums[binIdx] += weight;
-    }
-};
-
-struct Cut {
-    std::vector<CutClause> clauses;
-    std::vector<HistogramSpec> histogramSpecs;
-};
-
-struct CutJetsResult {
-    double csOnW = 0;
-    std::vector<std::vector<Histogram>> histograms;
-    // std::vector<std::vector<Jet>> jetsList;
-};
-
-CutJetsResult getCutJets(const Format& format, const char* filename, size_t takeNum, const std::vector<Cut>& cuts, size_t skipNum, bool strict) {
+CutJetsResult getCutJets(const Format& format, const char* filename, const GetCutJetsSpec& spec) {
+    CutJetsResult result;
     LineReader reader{filename};
 
     double totalWeight = 0;
     double crossSection = NAN;  // keep this outside the loop so we can return the last value
 
-    CutJetsResult result;
     // result.jetsList.resize(cuts.size());
-    // Initialize histograms based on the specs for each cut
-    for (const auto& cut : cuts) {
-        auto& histogram = result.histograms.emplace_back();
-        for (const auto& spec : cut.histogramSpecs) {
-            histogram.emplace_back(spec);
-        }
+    // Initialize output histograms based on the specs for each cut
+    for (const auto& cut : spec.cuts) {
+        result.cutResults.push_back(CutResult{
+            .intHistograms = cut.intHistograms,
+            .binHistograms = cut.binHistograms,
+        });
     }
 
     reader.nextLine(); // skip header line
@@ -172,21 +85,21 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
 
         // Read all jets until the next new event
         size_t jetsSeen = 0;
-        std::vector<size_t> jetsTaken(cuts.size(), 0);
+        std::vector<size_t> jetsTaken(spec.cuts.size(), 0);
         do {
             if (reader.peek() == 'N') {  // new event
                 break;
             }
             jetsSeen++;
-            if (jetsSeen <= skipNum) {
+            if (jetsSeen <= spec.skipNum) {
                 // skip jets until skipNum is satisfied
                 continue;
             }
-            if (std::all_of(jetsTaken.begin(), jetsTaken.end(), [&](auto taken) { return taken >= takeNum; })) {
+            if (std::all_of(jetsTaken.begin(), jetsTaken.end(), [&](auto taken) { return taken >= spec.takeNum; })) {
                 // skip all remaining jets once takeNum has been satisfied across all cuts
                 continue;
             }
-            if (strict && jetsSeen > skipNum + takeNum) {
+            if (spec.strict && jetsSeen > spec.skipNum + spec.takeNum) {
                 // in strict mode, skip all remaining jets if takeNum jets have been considered
                 continue;
             }
@@ -206,87 +119,20 @@ CutJetsResult getCutJets(const Format& format, const char* filename, size_t take
                     " values, but encountered " + std::to_string(jet.size()));
             }
 
-            for (size_t i = 0; i < cuts.size(); i++) {
-                if (jetsTaken[i] >= takeNum) {
+            for (size_t i = 0; i < spec.cuts.size(); i++) {
+                if (jetsTaken[i] >= spec.takeNum) {
                     continue;
                 }
 
-                bool matches = std::all_of(cuts[i].clauses.begin(), cuts[i].clauses.end(), [&](const auto& clause) {
-                    return clause.matches(jet);
-                });
-                if (matches) {
+                if (spec.cuts[i].matches(jet)) {
                     jetsTaken[i]++;
-                    // result.jetsList[i].push_back(jet);
+                    result.cutResults[i].add(weight, jet);
                 }
             }
         } while (reader.nextLine());
     }
 
     result.csOnW = crossSection / totalWeight;
+    result.finish();
     return result;
-}
-
-int main(int argc, char** argv) {
-    std::vector<std::string> args(argv+1, argv+argc);
-    if (args.size() < 5) {
-        std::cerr << "Usage: get_cuts [--new|--newer] input.txt takeNum VAR_1 min1 max1 VAR_2 min2 max2 ..." << std::endl;
-        return 1;
-    }
-
-    // iterator to help consume arguments one by one
-    auto currentArg = args.begin();
-
-    const Format* format;
-    {
-        const auto& formatArg = *currentArg++;
-        if (formatArg == "--new") {
-            format = &NewFormat;
-        } else if (formatArg == "--newer") {
-            format = &NewerFormat;
-        } else {
-            throw std::runtime_error("Expected --new or --newer");
-        }
-    }
-
-    const auto& filename = *currentArg++;
-    // if ((args.end() - currentArg) % 3 != 0) {
-    //     throw std::runtime_error(
-    //         "Wrong number of arguments after filename; expected multiple of 3 but have "
-    //         + std::to_string(args.end() - currentArg));
-    // }
-
-    const int takeNum = std::atoi((*currentArg++).c_str());
-
-    std::vector<Cut> cuts;
-    Cut cut;
-    while (currentArg != args.end()) {
-        std::string varName = *currentArg++;
-        if (varName == "new_cut") { // start a new cut
-          cuts.push_back(cut);
-          cut = {};
-          continue;
-        }
-        size_t varIndex = format->var(varName);
-        double min = std::atof((*currentArg++).c_str());
-        double max = std::atof((*currentArg++).c_str());
-        cut.clauses.push_back({varIndex, min, max});
-    }
-    cuts.push_back(cut);
-
-    CutJetsResult result = getCutJets(*format, filename.c_str(), takeNum, cuts, 0, true);
-
-    // Naive output as CSV
-    // std::printf("%lf\n", result.csOnW);
-    // for (size_t i = 0; i < result.jetsList.size(); i++) {
-    //     // std::printf("# Cut %zu: %zu jets taken\n", i, result.jetsList[i].size());
-    //     for (const auto& jet : result.jetsList[i]) {
-    //         for (double val : jet) {
-    //             std::printf("%lg,", val);
-    //         }
-    //         std::printf("\n");
-    //     }
-    //     std::printf("\n\n");
-    // }
-
-    return 0;
 }

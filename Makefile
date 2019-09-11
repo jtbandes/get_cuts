@@ -1,2 +1,5 @@
-get_cuts: get_cuts.cpp LineReader.h Progress.h
-	clang++ -std=c++17 -Wall -O3 -g get_cuts.cpp -o $@
+CXX ?= clang++
+
+get_cuts: *.cpp *.h
+	$(CXX) -std=c++17 -stdlib=libc++ -Wall -O3 -g *.cpp -o $@
+	./get_cuts --test
