@@ -72,6 +72,7 @@ struct Cut {
 };
 
 struct CutResult {
+    double totalJetsTaken = 0;
     std::vector<IntHistogram> intHistograms;
     std::vector<BinHistogram> binHistograms;
 
