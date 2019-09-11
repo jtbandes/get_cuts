@@ -62,7 +62,7 @@ Spec file format:
     GetCutJetsSpec spec(*format, std::cin);
     CutJetsResult result = getCutJets(*format, filename.c_str(), spec);
 
-    std::printf("cs_on_w: %lf\n", result.csOnW);
+    std::printf("cs_on_w: %lg\n", result.csOnW);
     std::printf("cuts:\n");
     for (const auto& cutResult : result.cutResults) {
         std::printf("  -\n");
