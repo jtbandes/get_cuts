@@ -126,6 +126,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
 
                 if (spec.cuts[i].matches(jet)) {
                     jetsTaken[i]++;
+                    result.cutResults[i].totalJetsTaken++;
                     result.cutResults[i].add(weight, jet);
                 }
             }
