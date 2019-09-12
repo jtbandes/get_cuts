@@ -66,33 +66,35 @@ Spec file format:
     std::printf("cuts:\n");
     for (const auto& cutResult : result.cutResults) {
         std::printf("  -\n");
+        std::printf("    total_jets_taken: %zu\n", cutResult.totalJetsTaken);
+        std::printf("    histograms:\n");
         for (const auto& hist : cutResult.intHistograms) {
-            std::printf("    %s:\n", hist.varName.c_str());
-            std::printf("      total_weight: %lg\n", hist.totalWeight);
-            std::printf("      total_err: %lg\n", hist.totalErr);
+            std::printf("      %s:\n", hist.varName.c_str());
+            std::printf("        total_weight: %lg\n", hist.totalWeight);
+            std::printf("        total_err: %lg\n", hist.totalErr);
 
-            std::printf("      bins: [");
+            std::printf("        bins: [");
             for (const auto& [k, v] : hist.binSums) std::printf("%" PRIdMAX ", ", k);
             std::printf("]\n");
-            std::printf("      values: [");
+            std::printf("        values: [");
             for (const auto& [k, v] : hist.binSums) std::printf("%lg, ", v);
             std::printf("]\n");
-            std::printf("      errs: [");
+            std::printf("        errs: [");
             for (const auto& [k, v] : hist.binSums) std::printf("%lg, ", hist.binErrs.at(k));
             std::printf("]\n");
         }
         for (const auto& hist : cutResult.binHistograms) {
-            std::printf("    %s:\n", hist.varName.c_str());
-            std::printf("      total_weight: %lg\n", hist.totalWeight);
-            std::printf("      total_err: %lg\n", hist.totalErr);
+            std::printf("      %s:\n", hist.varName.c_str());
+            std::printf("        total_weight: %lg\n", hist.totalWeight);
+            std::printf("        total_err: %lg\n", hist.totalErr);
 
-            std::printf("      bins: [");
+            std::printf("        bins: [");
             for (const auto& val : hist.binEndpoints) std::printf("%lg, ", val);
             std::printf("]\n");
-            std::printf("      values: [");
+            std::printf("        values: [");
             for (const auto& val : hist.binSums) std::printf("%lg, ", val);
             std::printf("]\n");
-            std::printf("      errs: [");
+            std::printf("        errs: [");
             for (const auto& val : hist.binErrs) std::printf("%lg, ", val);
             std::printf("]\n");
         }

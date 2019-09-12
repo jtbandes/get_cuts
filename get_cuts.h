@@ -72,11 +72,12 @@ struct Cut {
 };
 
 struct CutResult {
-    double totalJetsTaken = 0;
+    size_t totalJetsTaken = 0;
     std::vector<IntHistogram> intHistograms;
     std::vector<BinHistogram> binHistograms;
 
     void add(double weight, const Jet& jet) {
+        ++totalJetsTaken;
         for (auto& hist : intHistograms) {
             hist.add(weight, jet);
         }
