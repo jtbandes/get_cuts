@@ -36,6 +36,7 @@ Spec file format:
   VAR_2 min2 max2
   histogram_ints: VAR_3
   histogram: VAR_4 0.2 0.5 20
+  histogram_custom: VAR_4 0.10 0.15 0.20 0.25 0.30
 
   new_cut
   VAR_1 min1 max1

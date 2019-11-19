@@ -139,6 +139,18 @@ struct GetCutJetsSpec {
                 throw std::runtime_error("Expected '" + expected + "' but found " + actual);
             }
         };
+        auto spaceSeparatedDoublesToEndOfLine = [&]() {
+            std::vector<double> result;
+            do {
+                double value;
+                stream >> value;
+                if (!stream) {
+                    throw std::runtime_error("Error reading spec; expected doubles");
+                }
+                result.push_back(value);
+            } while (stream.peek() != '\n');
+            return result;
+        };
 
         consumeWord("takeNum:");
         takeNum = std::atoi(nextWord("integer").c_str());
@@ -191,6 +203,10 @@ struct GetCutJetsSpec {
                 double max = std::atof(nextWord("max value for " + varName).c_str());
                 size_t numBins = std::atoi(nextWord("number of bins for " + varName).c_str());
                 cut.binHistograms.emplace_back(varName, varIndex, min, max, numBins);
+            } else if (directive == "histogram_custom:") {
+                std::string varName = nextWord("variable name");
+                size_t varIndex = format.var(varName);
+                cut.binHistograms.emplace_back(varName, varIndex, spaceSeparatedDoublesToEndOfLine());
             } else {
                 size_t varIndex = format.var(directive);
                 double min = std::atof(nextWord("min value for " + directive).c_str());
