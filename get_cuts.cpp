@@ -43,6 +43,9 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
         crossSection = reader.readDouble();
         assert(reader.usedWholeLine());
 
+        if (totalWeight + weight > spec.maxWeight) {
+            break;
+        }
         totalWeight += weight;
 
         if (!reader.nextLine()) break;
