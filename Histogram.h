@@ -62,6 +62,9 @@ struct BinHistogram {
         if (binEndpoints.size() < 2) {
             throw std::invalid_argument("Histogram must have at least 1 bin");
         }
+        if (std::adjacent_find(binEndpoints.begin(), binEndpoints.end(), std::greater_equal{}) != binEndpoints.end()) {
+            throw std::invalid_argument("Histogram bin endpoints must be strictly increasing");
+        }
         binSums.resize(binEndpoints.size() - 1, 0);
         binErrs.resize(binEndpoints.size() - 1, 0);
     }

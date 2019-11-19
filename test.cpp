@@ -208,6 +208,8 @@ static void testBinHistogram() {
 static void testCustomHistogram() {
     assertThrows("Histogram must have at least 1 bin", []{ BinHistogram h("foo", 0, {}); });
     assertThrows("Histogram must have at least 1 bin", []{ BinHistogram h("foo", 0, {1.0}); });
+    assertThrows("Histogram bin endpoints must be strictly increasing", []{ BinHistogram h("foo", 0, {1.0, 1.0}); });
+    assertThrows("Histogram bin endpoints must be strictly increasing", []{ BinHistogram h("foo", 0, {1.0, 0.9}); });
 
     BinHistogram h("foo", 0, {1.0, 5.0, 6.0});
     h.add(1, {0.4});
