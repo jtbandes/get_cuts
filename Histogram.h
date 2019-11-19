@@ -48,17 +48,30 @@ struct IntHistogram {
 struct BinHistogram {
     const std::string varName;
     const size_t varIndex;
-    const double binWidth;
     double totalWeight = 0;
     double totalErr = 0;
     std::vector<double> binEndpoints;
     std::vector<double> binSums;
     std::vector<double> binErrs;
 
+    BinHistogram(const std::string& varName, size_t varIndex, std::vector<double>&& binEndpoints)
+        : varName(varName)
+        , varIndex(varIndex)
+        , binEndpoints(binEndpoints)
+    {
+        if (binEndpoints.size() < 2) {
+            throw std::invalid_argument("Histogram must have at least 1 bin");
+        }
+        if (std::adjacent_find(binEndpoints.begin(), binEndpoints.end(), std::greater_equal{}) != binEndpoints.end()) {
+            throw std::invalid_argument("Histogram bin endpoints must be strictly increasing");
+        }
+        binSums.resize(binEndpoints.size() - 1, 0);
+        binErrs.resize(binEndpoints.size() - 1, 0);
+    }
+
     BinHistogram(const std::string& varName, size_t varIndex, double min, double max, size_t nBins)
         : varName(varName)
         , varIndex(varIndex)
-        , binWidth((max - min) / nBins)
     {
         if (nBins == 0) {
             throw std::invalid_argument("Histogram must have at least 1 bin");
@@ -93,11 +106,10 @@ struct BinHistogram {
     }
 
     void finish() {
-        for (auto& v : binSums) {
-            v = v / binWidth / totalWeight;
-        }
-        for (auto& v : binErrs) {
-            v = std::sqrt(v) / binWidth / totalWeight;
+        for (size_t i = 0; i < binSums.size(); i++) {
+            double binWidth = binEndpoints[i + 1] - binEndpoints[i];
+            binSums[i] = binSums[i] / binWidth / totalWeight;
+            binErrs[i] = std::sqrt(binErrs[i]) / binWidth / totalWeight;
         }
     }
 };
