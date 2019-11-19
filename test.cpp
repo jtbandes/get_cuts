@@ -34,18 +34,22 @@ static void testParseSpec() {
     assertThrows("Expected 'skipNum:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1"); });
     assertThrows("Expected 'strict:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2"); });
     assertThrows("Expected boolean in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict:"); });
+    assertThrows("Expected 'maxWeight:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true"); });
+    assertThrows("Expected double in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true\nmaxWeight:"); });
 
     {
-        GetCutJetsSpec spec(format, "takeNum: 1 \n skipNum: 2 \n strict: true");
+        GetCutJetsSpec spec(format, "takeNum: 1 \n skipNum: 2 \n strict: true \n maxWeight: 1.5");
         assert(spec.takeNum == 1);
         assert(spec.skipNum == 2);
         assert(spec.strict == true);
+        assert(spec.maxWeight == 1.5);
     }
     {
-        GetCutJetsSpec spec(format, "takeNum: 20 \n skipNum: 30 \n strict: false");
+        GetCutJetsSpec spec(format, "takeNum: 20 \n skipNum: 30 \n strict: false \n maxWeight: inf");
         assert(spec.takeNum == 20);
         assert(spec.skipNum == 30);
         assert(spec.strict == false);
+        assert(spec.maxWeight == INFINITY);
     }
 
     assertThrows("unrecognized variable VAR_3", [&]{
@@ -53,6 +57,7 @@ static void testParseSpec() {
             takeNum: 1
             skipNum: 2
             strict: true
+            maxWeight: 1.5
 
             new_cut
             VAR_3 0.1 2.5
@@ -63,6 +68,7 @@ static void testParseSpec() {
         takeNum: 1
         skipNum: 2
         strict: true
+        maxWeight: 1.5
 
         new_cut
         VAR_1 -0.2 5.1e6

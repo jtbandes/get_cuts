@@ -111,6 +111,7 @@ struct GetCutJetsSpec {
     size_t takeNum;
     size_t skipNum;
     bool strict;
+    double maxWeight;
     std::vector<Cut> cuts;
 
     // Initialize by reading from a specification file (or stdin)
@@ -156,6 +157,9 @@ struct GetCutJetsSpec {
                 throw std::runtime_error("Expected strict: true or strict: false; found " + strictStr);
             }
         }
+
+        consumeWord("maxWeight:");
+        maxWeight = std::atof(nextWord("double").c_str());
 
         Cut cut;
 

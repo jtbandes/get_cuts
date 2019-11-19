@@ -29,6 +29,7 @@ Spec file format:
   takeNum: 2
   skipNum: 2
   strict: true
+  maxWeight: inf
 
   new_cut
   VAR_1 min1 max1
