@@ -98,6 +98,8 @@ struct CutResult {
 
 struct CutJetsResult {
     double csOnW = 0;
+    double totalWeight = 0;
+    size_t numEvents = 0;
     std::vector<CutResult> cutResults;
 
     void finish() {
@@ -111,7 +113,8 @@ struct GetCutJetsSpec {
     size_t takeNum;
     size_t skipNum;
     bool strict;
-    double maxWeight;
+    double eventProbabilityMultiplier = NAN;
+    long long randomSeed;
     std::vector<Cut> cuts;
 
     // Initialize by reading from a specification file (or stdin)
@@ -170,8 +173,11 @@ struct GetCutJetsSpec {
             }
         }
 
-        consumeWord("maxWeight:");
-        maxWeight = std::atof(nextWord("double").c_str());
+        consumeWord("eventProbabilityMultiplier:");
+        eventProbabilityMultiplier = std::atof(nextWord("double").c_str());
+
+        consumeWord("randomSeed:");
+        randomSeed = std::atoll(nextWord("integer").c_str());
 
         Cut cut;
 

@@ -41,22 +41,26 @@ static void testParseSpec() {
     assertThrows("Expected 'skipNum:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1"); });
     assertThrows("Expected 'strict:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2"); });
     assertThrows("Expected boolean in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict:"); });
-    assertThrows("Expected 'maxWeight:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true"); });
-    assertThrows("Expected double in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true\nmaxWeight:"); });
+    assertThrows("Expected 'eventProbabilityMultiplier:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true"); });
+    assertThrows("Expected double in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true\neventProbabilityMultiplier:"); });
+    assertThrows("Expected 'randomSeed:' in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true\neventProbabilityMultiplier: nan"); });
+    assertThrows("Expected integer in spec", [&]{ GetCutJetsSpec(format, "takeNum: 1\nskipNum: 2\nstrict: true\neventProbabilityMultiplier: nan\nrandomSeed:"); });
 
     {
-        GetCutJetsSpec spec(format, "takeNum: 1 \n skipNum: 2 \n strict: true \n maxWeight: 1.5");
+        GetCutJetsSpec spec(format, "takeNum: 1 \n skipNum: 2 \n strict: true \n eventProbabilityMultiplier: 1.5 \n randomSeed: 25");
         assert(spec.takeNum == 1);
         assert(spec.skipNum == 2);
         assert(spec.strict == true);
-        assert(spec.maxWeight == 1.5);
+        assert(spec.eventProbabilityMultiplier == 1.5);
+        assert(spec.randomSeed == 25);
     }
     {
-        GetCutJetsSpec spec(format, "takeNum: 20 \n skipNum: 30 \n strict: false \n maxWeight: inf");
+        GetCutJetsSpec spec(format, "takeNum: 20 \n skipNum: 30 \n strict: false \n eventProbabilityMultiplier: nan \n randomSeed: -1");
         assert(spec.takeNum == 20);
         assert(spec.skipNum == 30);
         assert(spec.strict == false);
-        assert(spec.maxWeight == INFINITY);
+        assert(std::isnan(spec.eventProbabilityMultiplier));
+        assert(spec.randomSeed == -1);
     }
 
     assertThrows("unrecognized variable VAR_3", [&]{
@@ -64,7 +68,8 @@ static void testParseSpec() {
             takeNum: 1
             skipNum: 2
             strict: true
-            maxWeight: 1.5
+            eventProbabilityMultiplier: 1.5
+            randomSeed: 5
 
             new_cut
             VAR_3 0.1 2.5
@@ -75,7 +80,8 @@ static void testParseSpec() {
         takeNum: 1
         skipNum: 2
         strict: true
-        maxWeight: 1.5
+        eventProbabilityMultiplier: 1.5
+        randomSeed: 5
 
         new_cut
         VAR_1 -0.2 5.1e6
@@ -95,6 +101,8 @@ static void testParseSpec() {
     assert(spec.takeNum == 1);
     assert(spec.skipNum == 2);
     assert(spec.strict == true);
+    assert(spec.eventProbabilityMultiplier == 1.5);
+    assert(spec.randomSeed == 5);
     assert(spec.cuts.size() == 2);
 
     assert(vectorsEqual(spec.cuts[0].clauses, {

@@ -29,7 +29,8 @@ Spec file format:
   takeNum: 2
   skipNum: 2
   strict: true
-  maxWeight: inf
+  eventProbabilityMultiplier: nan
+  randomSeed: 0
 
   new_cut
   VAR_1 min1 max1
@@ -64,6 +65,8 @@ Spec file format:
     GetCutJetsSpec spec(*format, std::cin);
     CutJetsResult result = getCutJets(*format, filename.c_str(), spec);
 
+    std::printf("num_events: %zu\n", result.numEvents);
+    std::printf("total_weight: %lg\n", result.totalWeight);
     std::printf("cs_on_w: %lg\n", result.csOnW);
     std::printf("cuts:\n");
     for (const auto& cutResult : result.cutResults) {
