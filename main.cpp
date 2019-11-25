@@ -65,8 +65,8 @@ Spec file format:
     GetCutJetsSpec spec(*format, std::cin);
     CutJetsResult result = getCutJets(*format, filename.c_str(), spec);
 
-    std::printf("total_events: %zu\n", result.numEvents);
-    std::printf("kept_events: %zu\n", result.numEventsKept);
+    std::printf("num_events: %zu\n", result.numEvents);
+    std::printf("total_weight: %lg\n", result.totalWeight);
     std::printf("cs_on_w: %lg\n", result.csOnW);
     std::printf("cuts:\n");
     for (const auto& cutResult : result.cutResults) {

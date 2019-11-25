@@ -98,8 +98,8 @@ struct CutResult {
 
 struct CutJetsResult {
     double csOnW = 0;
+    double totalWeight = 0;
     size_t numEvents = 0;
-    size_t numEventsKept = 0;
     std::vector<CutResult> cutResults;
 
     void finish() {

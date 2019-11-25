@@ -24,7 +24,6 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
     std::seed_seq seed({spec.randomSeed});
     std::mt19937_64 randEngine(seed);
 
-    double totalWeight = 0;
     double crossSection = NAN;  // keep this outside the loop so we can return the last value
 
     // result.jetsList.resize(cuts.size());
@@ -48,10 +47,9 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
 
         bool keepEvent = !useEventProbability || randDouble(randEngine) < weight * spec.eventProbabilityMultiplier;
 
-        ++result.numEvents;
         if (keepEvent) {
-            ++result.numEventsKept;
-            totalWeight += weight;
+            ++result.numEvents;
+            result.totalWeight += weight;
             crossSection = reader.readDouble();
         } else {
             reader.readDouble();
@@ -149,7 +147,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
         } while (reader.nextLine());
     }
 
-    result.csOnW = crossSection / totalWeight;
+    result.csOnW = crossSection / result.totalWeight;
     result.finish();
     return result;
 }
