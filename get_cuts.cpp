@@ -123,7 +123,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
             jet.reserve(format.numVars());
             reader.readCommaSeparatedDoubles(&jet);
 
-            jet.insert(jet.begin() + format.weightInsertPoint, weight);
+            jet.insert(jet.begin() + format.weightInsertPoint, useEventProbability ? 1.0 : weight);
             jet.insert(jet.begin() + format.zInsertPoint, std::begin(zData), std::end(zData));
             jet.insert(jet.begin() + format.flagInsertPoint, isGluon1);
             jet.insert(jet.begin() + format.flagInsertPoint + 1, isGluon2);
