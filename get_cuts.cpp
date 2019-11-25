@@ -7,6 +7,7 @@
 #include <cmath>
 #include <cstdio>
 #include <iostream>
+#include <random>
 #include <string>
 #include <vector>
 
@@ -17,6 +18,11 @@
 CutJetsResult getCutJets(const Format& format, const char* filename, const GetCutJetsSpec& spec) {
     CutJetsResult result;
     LineReader reader{filename};
+
+    bool useEventProbability = !std::isnan(spec.eventProbabilityMultiplier);
+    std::uniform_real_distribution randDouble(0.0, 1.0);
+    std::seed_seq seed({spec.randomSeed});
+    std::mt19937_64 randEngine(seed);
 
     double totalWeight = 0;
     double crossSection = NAN;  // keep this outside the loop so we can return the last value
@@ -35,18 +41,23 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
     reader.nextLine();
     while (!reader.atEOF()) {
         reader.skip("New Event");
-
-        // Read weight and cross section
         reader.nextLine();
+
         double weight = reader.readDouble();
         reader.skip(',');
-        crossSection = reader.readDouble();
-        assert(reader.usedWholeLine());
 
-        if (totalWeight + weight > spec.maxWeight) {
-            break;
+        bool keepEvent = !useEventProbability || randDouble(randEngine) < weight * spec.eventProbabilityMultiplier;
+
+        ++result.numEvents;
+        if (keepEvent) {
+            ++result.numEventsKept;
+            totalWeight += weight;
+            crossSection = reader.readDouble();
+        } else {
+            reader.readDouble();
         }
-        totalWeight += weight;
+
+        assert(reader.usedWholeLine());
 
         if (!reader.nextLine()) break;
 
@@ -93,6 +104,9 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
             if (reader.peek() == 'N') {  // new event
                 break;
             }
+            if (!keepEvent) {
+                continue;
+            }
             jetsSeen++;
             if (jetsSeen <= spec.skipNum) {
                 // skip jets until skipNum is satisfied
@@ -129,7 +143,7 @@ CutJetsResult getCutJets(const Format& format, const char* filename, const GetCu
 
                 if (spec.cuts[i].matches(jet)) {
                     jetsTaken[i]++;
-                    result.cutResults[i].add(weight, jet);
+                    result.cutResults[i].add(useEventProbability ? 1.0 : weight, jet);
                 }
             }
         } while (reader.nextLine());
